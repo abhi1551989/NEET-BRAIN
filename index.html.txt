@@ -1,0 +1,565 @@
+import React, { useState, useEffect } from 'react';
+import { Brain, Search, BookOpen, Target, TrendingUp, AlertCircle, Lightbulb, X, CheckCircle, XCircle, Calendar, BarChart3, Flame } from 'lucide-react';
+
+const NEET_CHAPTERS = {
+  Physics: [
+    'Physical World', 'Units and Measurement', 'Motion in Straight Line', 'Motion in Plane', 
+    'Laws of Motion', 'Work Energy Power', 'System of Particles', 'Gravitation',
+    'Mechanical Properties of Solids', 'Mechanical Properties of Fluids', 'Thermal Properties',
+    'Thermodynamics', 'Kinetic Theory', 'Oscillations', 'Waves', 'Electric Charges and Fields',
+    'Electrostatic Potential', 'Current Electricity', 'Moving Charges', 'Magnetism',
+    'Electromagnetic Induction', 'Alternating Current', 'Electromagnetic Waves', 'Ray Optics',
+    'Wave Optics', 'Dual Nature of Radiation', 'Atoms', 'Nuclei', 'Semiconductor Electronics',
+    'Communication Systems'
+  ],
+  Chemistry: [
+    'Some Basic Concepts', 'Structure of Atom', 'Classification of Elements', 'Chemical Bonding',
+    'States of Matter', 'Thermodynamics', 'Equilibrium', 'Redox Reactions', 'Hydrogen',
+    's-Block Elements', 'p-Block Elements', 'Organic Chemistry Basics', 'Hydrocarbons',
+    'Environmental Chemistry', 'Solid State', 'Solutions', 'Electrochemistry', 'Chemical Kinetics',
+    'Surface Chemistry', 'd and f Block', 'Coordination Compounds', 'Haloalkanes',
+    'Alcohols Phenols Ethers', 'Aldehydes Ketones', 'Carboxylic Acids', 'Amines',
+    'Biomolecules', 'Polymers', 'Chemistry in Everyday Life'
+  ],
+  Biology: [
+    'Living World', 'Biological Classification', 'Plant Kingdom', 'Animal Kingdom',
+    'Morphology of Flowering Plants', 'Anatomy of Flowering Plants', 'Structural Organisation in Animals',
+    'Cell The Unit of Life', 'Biomolecules', 'Cell Cycle', 'Transport in Plants', 'Mineral Nutrition',
+    'Photosynthesis in Higher Plants', 'Respiration in Plants', 'Plant Growth and Development',
+    'Digestion and Absorption', 'Breathing and Exchange of Gases', 'Body Fluids and Circulation',
+    'Excretory Products', 'Locomotion and Movement', 'Neural Control', 'Chemical Coordination',
+    'Reproduction in Organisms', 'Sexual Reproduction in Flowering Plants', 'Human Reproduction',
+    'Reproductive Health', 'Principles of Inheritance', 'Molecular Basis of Inheritance',
+    'Evolution', 'Human Health and Disease', 'Strategies for Enhancement', 'Microbes in Human Welfare',
+    'Biotechnology Principles', 'Biotechnology and Applications', 'Organisms and Populations',
+    'Ecosystem', 'Biodiversity and Conservation', 'Environmental Issues'
+  ]
+};
+
+const generateQuestion = async (subject, chapter, type) => {
+  const prompt = `Generate a ${type} question for NEET ${subject} - ${chapter}. MUST cover core NCERT concepts comprehensively.
+
+${type === 'Statement Based' ? `Format: 2-3 statements about key NCERT concepts.
+Options: A) Only 1 correct B) 1,2 correct C) 2,3 correct D) All correct` : ''}
+${type === 'Assertion-Reason' ? `Format: Assertion (A) and Reason (R).
+Options: A) Both true, R explains A B) Both true, R doesn't explain A C) A true, R false D) A false, R true` : ''}
+${type === 'Match Following' ? `Format: Column I (4 items) matches Column II (4 items).
+Options must be combinations like: A) 1-P,2-Q,3-R,4-S B) 1-Q,2-P,3-S,4-R` : ''}
+
+Return ONLY JSON:
+{
+  "question": "Question text covering NCERT concept",
+  "options": ["A) ...", "B) ...", "C) ...", "D) ..."],
+  "correct": "A",
+  "explanation": "Why answer is correct with NCERT reference",
+  "concept": "Exact NCERT concept/topic"
+}`;
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 800,
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+    const data = await res.json();
+    let text = data.content?.[0]?.text || '{}';
+    text = text.replace(/```json\n?/g, '').replace(/```/g, '').trim();
+    return JSON.parse(text);
+  } catch (e) {
+    return null;
+  }
+};
+
+const generateAnswer = async (question) => {
+  const prompt = `Answer this NEET question from NCERT (under 120 words):
+"${question}"
+
+Return JSON:
+{
+  "answer": "Clear NCERT-based answer",
+  "concept": "NCERT concept",
+  "subject": "Physics/Chemistry/Biology",
+  "tips": "Quick study tip"
+}`;
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 350,
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+    const data = await res.json();
+    let text = data.content?.[0]?.text || '{}';
+    text = text.replace(/```json\n?/g, '').replace(/```/g, '').trim();
+    return JSON.parse(text);
+  } catch (e) {
+    return null;
+  }
+};
+
+const analyzeMistakes = async (mistakes) => {
+  const concepts = mistakes.slice(0, 8).map(m => m.concept).join(', ');
+  const prompt = `Analyze NEET mistakes: ${concepts}. Return JSON (max 3 each):
+{
+  "weakAreas": ["area1", "area2"],
+  "tips": ["tip1", "tip2"],
+  "focus": "Next chapter"
+}`;
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 250,
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+    const data = await res.json();
+    let text = data.content?.[0]?.text || '{}';
+    text = text.replace(/```json\n?/g, '').replace(/```/g, '').trim();
+    return JSON.parse(text);
+  } catch (e) {
+    return null;
+  }
+};
+
+export default function NEETBrain() {
+  const [view, setView] = useState('home');
+  const [query, setQuery] = useState('');
+  const [answer, setAnswer] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [mistakes, setMistakes] = useState([]);
+  const [dailyStats, setDailyStats] = useState({});
+  const [analysis, setAnalysis] = useState(null);
+  const [streak, setStreak] = useState(0);
+  const [practice, setPractice] = useState(null);
+  const [userAns, setUserAns] = useState(null);
+  const [showExp, setShowExp] = useState(false);
+  const [selectedSubject, setSelectedSubject] = useState('Physics');
+  const [qType, setQType] = useState('Statement Based');
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const m = await window.storage.get('neet-mistakes');
+        if (m?.value) setMistakes(JSON.parse(m.value));
+        
+        const s = await window.storage.get('neet-stats');
+        if (s?.value) setDailyStats(JSON.parse(s.value));
+        
+        const st = await window.storage.get('neet-streak');
+        if (st?.value) setStreak(JSON.parse(st.value).count || 0);
+      } catch (e) {}
+    };
+    loadData();
+  }, []);
+
+  const saveData = async () => {
+    try {
+      await window.storage.set('neet-mistakes', JSON.stringify(mistakes));
+      await window.storage.set('neet-stats', JSON.stringify(dailyStats));
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    if (mistakes.length > 0 || Object.keys(dailyStats).length > 0) {
+      saveData();
+    }
+  }, [mistakes, dailyStats]);
+
+  const handleSearch = async () => {
+    if (!query.trim()) return;
+    setLoading(true);
+    setAnswer(null);
+    const result = await generateAnswer(query);
+    setAnswer(result);
+    setLoading(false);
+    
+    const today = new Date().toDateString();
+    setDailyStats(prev => ({
+      ...prev,
+      [today]: { ...prev[today], queries: (prev[today]?.queries || 0) + 1 }
+    }));
+  };
+
+  const startPractice = async (subject, chapter, type) => {
+    setLoading(true);
+    setPractice(null);
+    setUserAns(null);
+    setShowExp(false);
+    const q = await generateQuestion(subject, chapter, type);
+    if (q) {
+      setPractice({ ...q, subject, chapter, type });
+      setView('practice');
+    }
+    setLoading(false);
+  };
+
+  const submitAnswer = () => {
+    setShowExp(true);
+    const today = new Date().toDateString();
+    const isCorrect = userAns === practice.correct;
+    
+    if (!isCorrect) {
+      const newMistake = {
+        id: Date.now(),
+        question: practice.question,
+        yourAnswer: userAns,
+        correctAnswer: practice.correct,
+        explanation: practice.explanation,
+        concept: practice.concept,
+        subject: practice.subject,
+        type: practice.type,
+        date: today
+      };
+      setMistakes(prev => [newMistake, ...prev].slice(0, 40));
+    }
+    
+    setDailyStats(prev => ({
+      ...prev,
+      [today]: {
+        ...prev[today],
+        total: (prev[today]?.total || 0) + 1,
+        correct: (prev[today]?.correct || 0) + (isCorrect ? 1 : 0)
+      }
+    }));
+
+    const updateStreak = async () => {
+      try {
+        const s = await window.storage.get('neet-streak');
+        const sData = s?.value ? JSON.parse(s.value) : { count: 0, lastDate: null };
+        const lastDate = sData.lastDate ? new Date(sData.lastDate).toDateString() : null;
+        const yesterday = new Date(Date.now() - 86400000).toDateString();
+        const newStreak = lastDate === today ? sData.count : lastDate === yesterday ? sData.count + 1 : 1;
+        setStreak(newStreak);
+        await window.storage.set('neet-streak', JSON.stringify({ count: newStreak, lastDate: today }));
+      } catch (e) {}
+    };
+    updateStreak();
+  };
+
+  const analyzePerformance = async () => {
+    if (mistakes.length === 0) return;
+    setLoading(true);
+    const result = await analyzeMistakes(mistakes);
+    setAnalysis(result);
+    setLoading(false);
+  };
+
+  if (view === 'practice' && practice) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950 text-white p-4">
+        <div className="max-w-2xl mx-auto">
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <h2 className="text-lg font-bold">{practice.subject} - {practice.chapter}</h2>
+              <p className="text-xs text-slate-400">{practice.type}</p>
+            </div>
+            <button onClick={() => setView('home')} className="p-2 rounded-lg bg-red-500/20 text-red-300">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="bg-white/5 rounded-xl p-6 border border-white/10 space-y-4">
+            <p className="text-base leading-relaxed">{practice.question}</p>
+            
+            <div className="space-y-2">
+              {practice.options?.map((opt, i) => (
+                <button
+                  key={i}
+                  onClick={() => !showExp && setUserAns(opt.charAt(0))}
+                  disabled={showExp}
+                  className={`w-full text-left p-3 rounded-lg border transition-all text-sm ${
+                    showExp
+                      ? opt.charAt(0) === practice.correct
+                        ? 'border-emerald-500 bg-emerald-500/20'
+                        : opt.charAt(0) === userAns
+                        ? 'border-red-500 bg-red-500/20'
+                        : 'border-white/10 bg-white/5 opacity-50'
+                      : userAns === opt.charAt(0)
+                      ? 'border-cyan-500 bg-cyan-500/20'
+                      : 'border-white/10 bg-white/5'
+                  }`}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+
+            {showExp && (
+              <div className={`p-4 rounded-lg border ${userAns === practice.correct ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  {userAns === practice.correct ? <CheckCircle className="w-5 h-5 text-emerald-400" /> : <XCircle className="w-5 h-5 text-red-400" />}
+                  <p className="font-semibold">{userAns === practice.correct ? 'Correct!' : 'Incorrect'}</p>
+                </div>
+                <p className="text-sm text-slate-300 mb-2">{practice.explanation}</p>
+                <p className="text-xs text-cyan-300"><strong>Concept:</strong> {practice.concept}</p>
+              </div>
+            )}
+
+            {!showExp ? (
+              <button onClick={submitAnswer} disabled={!userAns} className="w-full py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-purple-500 font-semibold disabled:opacity-50">
+                Submit Answer
+              </button>
+            ) : (
+              <div className="flex gap-2">
+                <button onClick={() => startPractice(practice.subject, practice.chapter, practice.type)} disabled={loading} className="flex-1 py-3 rounded-lg bg-cyan-500/20 text-cyan-300 font-semibold disabled:opacity-50">
+                  Next Question
+                </button>
+                <button onClick={() => setView('home')} className="flex-1 py-3 rounded-lg bg-purple-500/20 text-purple-300 font-semibold">
+                  Back Home
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const today = new Date().toDateString();
+  const todayStats = dailyStats[today] || { queries: 0, total: 0, correct: 0 };
+  const accuracy = todayStats.total > 0 ? Math.round((todayStats.correct / todayStats.total) * 100) : 0;
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950 text-white">
+      <header className="border-b border-white/10 bg-white/5 backdrop-blur sticky top-0 z-10">
+        <div className="max-w-2xl mx-auto px-4 py-3">
+          <div className="flex justify-between items-center mb-3">
+            <div className="flex items-center gap-2">
+              <Brain className="w-8 h-8 text-cyan-400" />
+              <div>
+                <h1 className="text-xl font-bold">NEET Brain</h1>
+                <p className="text-xs text-slate-400">By Abhishek Sir</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-500/20 border border-orange-500/30">
+              <Flame className="w-4 h-4 text-orange-400" />
+              <span className="font-bold text-orange-300 text-sm">{streak}</span>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            {['home', 'mistakes', 'stats'].map(v => (
+              <button key={v} onClick={() => setView(v)} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${view === v ? 'bg-cyan-500/20 text-cyan-300' : 'text-slate-400'}`}>
+                {v.charAt(0).toUpperCase() + v.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-2xl mx-auto px-4 py-4">
+        {view === 'home' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { label: 'Today', value: todayStats.queries, sub: 'queries' },
+                { label: 'Practice', value: todayStats.total, sub: 'questions' },
+                { label: 'Accuracy', value: `${accuracy}%`, sub: '' }
+              ].map((stat, i) => (
+                <div key={i} className="bg-white/5 rounded-lg p-3 border border-white/10">
+                  <p className="text-xs text-slate-400 mb-1">{stat.label}</p>
+                  <p className="text-xl font-bold text-cyan-400">{stat.value}</p>
+                  {stat.sub && <p className="text-xs text-slate-400">{stat.sub}</p>}
+                </div>
+              ))}
+            </div>
+
+            <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+              <div className="flex items-center gap-2 mb-3">
+                <Search className="w-5 h-5 text-cyan-400" />
+                <h3 className="font-semibold">Ask Your Question</h3>
+              </div>
+              <textarea
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Type NEET doubt... e.g., 'Explain Hund's rule' or 'What is Hardy-Weinberg principle?'"
+                className="w-full p-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm resize-none"
+                rows="3"
+              />
+              <button onClick={handleSearch} disabled={loading || !query.trim()} className="w-full mt-2 py-2.5 rounded-lg bg-gradient-to-r from-cyan-500 to-purple-500 font-semibold text-sm disabled:opacity-50">
+                {loading ? 'Getting Answer...' : 'NEET Curated Answer'}
+              </button>
+
+              {answer && (
+                <div className="mt-4 p-4 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+                  <div className="flex gap-2 mb-2">
+                    <span className="px-2 py-0.5 rounded text-xs bg-purple-500/20 text-purple-300">{answer.subject}</span>
+                  </div>
+                  <p className="text-sm text-slate-300 mb-2">{answer.answer}</p>
+                  <p className="text-xs text-cyan-300"><strong>Concept:</strong> {answer.concept}</p>
+                  <p className="text-xs text-slate-400 mt-2"><strong>Tip:</strong> {answer.tips}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <Target className="w-5 h-5 text-cyan-400" />NCERT Practice
+                </h3>
+                <div className="flex gap-1">
+                  {Object.keys(NEET_CHAPTERS).map(s => (
+                    <button key={s} onClick={() => setSelectedSubject(s)} className={`px-2 py-1 rounded text-xs font-medium ${selectedSubject === s ? 'bg-cyan-500/20 text-cyan-300' : 'bg-white/5 text-slate-400'}`}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-white/5 rounded-xl p-3 border border-white/10">
+                <div className="flex gap-2 mb-3">
+                  {['Statement Based', 'Assertion-Reason', 'Match Following'].map(t => (
+                    <button key={t} onClick={() => setQType(t)} className={`flex-1 py-1.5 rounded text-xs font-medium ${qType === t ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'bg-white/5 text-slate-400'}`}>
+                      {t}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 max-h-80 overflow-y-auto">
+                  {NEET_CHAPTERS[selectedSubject].map(ch => (
+                    <button key={ch} onClick={() => startPractice(selectedSubject, ch, qType)} disabled={loading} className="py-2 px-3 rounded-lg bg-gradient-to-r from-cyan-500/20 to-purple-500/20 border border-cyan-500/30 text-xs font-medium text-left disabled:opacity-50">
+                      {ch}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {view === 'mistakes' && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="font-semibold flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-red-400" />Mistake Logbook ({mistakes.length})
+              </h3>
+              {mistakes.length > 0 && (
+                <button onClick={analyzePerformance} disabled={loading} className="px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-300 text-sm font-medium disabled:opacity-50">
+                  {loading ? 'Analyzing...' : 'AI Analysis'}
+                </button>
+              )}
+            </div>
+
+            {analysis && (
+              <div className="bg-purple-500/10 rounded-xl p-4 border border-purple-500/20">
+                <h4 className="font-semibold mb-2 flex items-center gap-2">
+                  <Lightbulb className="w-5 h-5 text-purple-400" />AI Insights
+                </h4>
+                {analysis.weakAreas?.length > 0 && (
+                  <div className="mb-3">
+                    <p className="text-xs text-slate-400 mb-1">Weak Areas:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {analysis.weakAreas.map((area, i) => (
+                        <span key={i} className="px-2 py-1 rounded text-xs bg-red-500/20 text-red-300">{area}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {analysis.tips?.length > 0 && (
+                  <div className="mb-3">
+                    <p className="text-xs text-slate-400 mb-1">Tips:</p>
+                    <ul className="space-y-1">
+                      {analysis.tips.map((tip, i) => (
+                        <li key={i} className="text-xs text-slate-300">• {tip}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {analysis.focus && (
+                  <p className="text-xs text-cyan-300"><strong>Next Focus:</strong> {analysis.focus}</p>
+                )}
+              </div>
+            )}
+
+            {mistakes.length === 0 ? (
+              <div className="text-center py-12 text-slate-400">
+                <CheckCircle className="w-12 h-12 mx-auto mb-2 text-emerald-400" />
+                <p className="text-sm">No mistakes yet! Keep practicing.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {mistakes.map(m => (
+                  <div key={m.id} className="bg-white/5 rounded-lg p-4 border border-white/10">
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex gap-2">
+                        <span className="px-2 py-0.5 rounded text-xs bg-red-500/20 text-red-300">{m.subject}</span>
+                        <span className="px-2 py-0.5 rounded text-xs bg-orange-500/20 text-orange-300">{m.type}</span>
+                      </div>
+                      <span className="text-xs text-slate-500">{m.date}</span>
+                    </div>
+                    <p className="text-sm mb-2">{m.question}</p>
+                    <div className="space-y-1 text-xs">
+                      <p className="text-red-300">Your: {m.yourAnswer}</p>
+                      <p className="text-emerald-300">Correct: {m.correctAnswer}</p>
+                      <p className="text-slate-400">{m.explanation}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {view === 'stats' && (
+          <div className="space-y-4">
+            <h3 className="font-semibold flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-cyan-400" />Performance Tracker
+            </h3>
+
+            <div className="space-y-2">
+              {Object.entries(dailyStats).slice(-7).reverse().map(([date, stats]) => {
+                const acc = stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0;
+                return (
+                  <div key={date} className="bg-white/5 rounded-lg p-4 border border-white/10">
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-cyan-400" />
+                        <span className="text-sm font-medium">{new Date(date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}</span>
+                      </div>
+                      <span className={`text-sm font-bold ${acc >= 80 ? 'text-emerald-400' : acc >= 60 ? 'text-yellow-400' : 'text-red-400'}`}>
+                        {acc}%
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div>
+                        <p className="text-slate-400">Queries</p>
+                        <p className="font-bold text-cyan-400">{stats.queries || 0}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-400">Practice</p>
+                        <p className="font-bold text-purple-400">{stats.total || 0}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-400">Correct</p>
+                        <p className="font-bold text-emerald-400">{stats.correct || 0}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {Object.keys(dailyStats).length === 0 && (
+              <div className="text-center py-12 text-slate-400">
+                <TrendingUp className="w-12 h-12 mx-auto mb-2 text-cyan-400" />
+                <p className="text-sm">Start practicing to see your stats!</p>
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
